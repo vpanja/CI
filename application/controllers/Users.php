@@ -133,7 +133,7 @@ public function index()
      * Existing email check during validation
      */
     public function gmailLogin(){
-        $this->load->library('googleapi');
+//        $this->load->library('googleapi');
         $client = new Google_Client();
         $client->setAuthConfigFile(base_url()."assets/client_secrets.json");
         $client->setRedirectUri( base_url(). 'users/gmailLogin');
@@ -193,17 +193,7 @@ public function index()
                 $this->session->set_userdata('isUserLoggedIn',TRUE);
                 $this->session->set_userdata('userId',$insert);
                 $userDetails['userId']=$insert;
-                foreach($userDetails['videoslist'] as $videos){
-                    if(isset($videos['id']['videoId'])){
-                        $videoDetails = array(
-                            'user_id'=>$insert,
-                            'channel_id'=>$userDetails['channel_id'],
-                            'video_id'=>$videos['id']['videoId'],
-                            'created_at'=> date("Y-m-d H:i:s")
-                        );
-                        $insertVideos = $this->user->insertVideos($videoDetails);
-                    }
-                }                
+                $this->addVideos($userDetails);             
                 redirect('users/account');
             }
         }else{
@@ -214,7 +204,8 @@ public function index()
 
     function getUserVideos($client){
         $videoService = new Google_Service_YouTube($client);
-        $channels = $videoService->channels->listChannels('id',array('mine'=>1))->getChannelDetails();
+        $params = array('mine'=>1);
+        $channels = $videoService->channels->listChannels('id',$params)->getChannelDetails();
         foreach($channels as $cId){
             $videos = $videoService->search->listSearch('id',array('channelId'=>$cId['id']))->getChannelItems();
         }
@@ -233,5 +224,31 @@ public function index()
             }
             $this->load->view('users/videos', $data);
         }
+    }
+    function fetchVideos(){
+        $videos=array();
+        $client = new Google_Client();
+        $client->setAccessToken($this->session->userdata('access_token'));
+        $videos['videoslist'] = $this->getUserVideos($client);
+        $videos['userId']=$this->session->userdata('userId');
+        if(isset($videos['videoslist'][0]['id']['channelId'])){
+            $videos['channel_id']=$videos['videoslist'][0]['id']['channelId'];
+        }
+        $this->addVideos($videos);
+        redirect('users/showUserVideos');
+    }
+    
+    function addVideos($userDetails){
+        foreach($userDetails['videoslist'] as $videos){
+            if(isset($videos['id']['videoId'])){
+                $videoDetails = array(
+                    'user_id'=>$userDetails['userId'],
+                    'channel_id'=>$userDetails['channel_id'],
+                    'video_id'=>$videos['id']['videoId'],
+                    'created_at'=> date("Y-m-d H:i:s")
+                );
+                $insertVideos = $this->user->insertVideos($videoDetails);
+            }
+        }  
     }
 }

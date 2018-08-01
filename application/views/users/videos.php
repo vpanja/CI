@@ -16,7 +16,7 @@
     }else{
         echo "<p>".$video_message."</p>";
     }
-    echo "<a href='".base_url()."users/addVideos'>Fetch Videos</a> From Youtube.";
+    echo "<a href='".base_url()."users/fetchVideos'>Fetch Videos</a> From Youtube.";
     ?>    
 </div>
 </body>
