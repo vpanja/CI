@@ -21,7 +21,7 @@ public function index()
     public function account(){
         $data = array();
         if($this->session->userdata('isUserLoggedIn')){
-            $data['user'] = $this->user->getRows(array('id'=>$this->session->userdata('userId')));
+            $data['user'] = $this->user->getRows(array('id'=>$this->session->userdata('userId')),'users');
             //load the view
             $this->load->view('users/account', $data);
         }else{
@@ -50,17 +50,7 @@ public function index()
                 $con['conditions'] = array(
                     'user_email'=>$this->input->post('email'),
                     'user_pass' => md5($this->input->post('password'))
-                    /*,
-                    'status' => '1'*/
                 );
-//                $checkLogin = $this->user->getRows($con);
-//                if($checkLogin){
-//                    $this->session->set_userdata('isUserLoggedIn',TRUE);
-//                    $this->session->set_userdata('userId',$checkLogin['ID']);
-//                    redirect('users/account');
-//                }else{
-//                    $data['error_msg'] = 'Wrong email or password, please try again.';                     
-//                }
                 $this->checkLogin($con);
             }
         }else{
@@ -90,7 +80,7 @@ public function index()
             );
 
             if($this->form_validation->run() == true){
-                $insert = $this->user->insert($userData);
+                $insert = $this->user->insert($userData,'users');
                 if($insert){
                     $this->session->set_userdata('success_msg', 'Your registration was successfully. Please login to your account.');
                     redirect('users/login');
@@ -120,7 +110,7 @@ public function index()
     public function email_check($str){
         $con['returnType'] = 'count';
         $con['conditions'] = array('user_email'=>$str);
-        $checkEmail = $this->user->getRows($con);
+        $checkEmail = $this->user->getRows($con,'users');
         if($checkEmail > 0){
             $this->form_validation->set_message('email_check', 'The given email already exists.');
             return FALSE;
@@ -150,11 +140,7 @@ public function index()
                 $profileDetails = $profileService->userinfo->get();
                 $userInfo = (array)$profileDetails;
                 $videos = $this->getUserVideos($client);
-                $userFullDetails = array_merge($userInfo,array('videoslist'=>$videos));
-                if(isset($videos[0]['id']['channelId'])){
-                    $userFullDetails['channel_id']=$videos[0]['id']['channelId'];
-                }
-                  
+                $userFullDetails = array_merge($userInfo,array('videoslist'=>$videos));                  
 //                                            echo '<pre>';print_r($userFullDetails);exit;       
                 $con['returnType'] = 'single';
                 $con['loginType'] = 'Google';
@@ -168,7 +154,7 @@ public function index()
     }
     
     function checkLogin($data,$userDetails=null){
-        $checkLogin = $this->user->getRows($data);
+        $checkLogin = $this->user->getRows($data,'users');
         if($checkLogin){
             $this->session->set_userdata('isUserLoggedIn',TRUE);
             $this->session->set_userdata('userId',$checkLogin['ID']);
@@ -180,7 +166,7 @@ public function index()
                     'user_pass' => md5('stellar'.$userDetails['id'])
                     );
             
-            $insert = $this->user->insert($newUser);
+            $insert = $this->user->insert($newUser,'users');
             $newSocialUser = array(
                 'linked_social_app'=>$data['loginType'],
                 'linked_email'=>$userDetails['email'],
@@ -188,7 +174,7 @@ public function index()
                 'user_id' => $insert,
                 'identifier'=>$userDetails['id']
                     );
-            $insertsocial = $this->user->insertSocial($newSocialUser);
+            $insertsocial = $this->user->insert($newSocialUser,'social_users');
             if($insert){  
                 $this->session->set_userdata('isUserLoggedIn',TRUE);
                 $this->session->set_userdata('userId',$insert);
@@ -208,14 +194,17 @@ public function index()
         $channels = $videoService->channels->listChannels('id',$params)->getChannelDetails();
         foreach($channels as $cId){
             $videos = $videoService->search->listSearch('id',array('channelId'=>$cId['id']))->getChannelItems();
+            $videos['channel_id']=$cId['id'];
         }
         return $videos;
     }
     function showUserVideos(){
         if($this->session->userdata('access_token') || $this->session->userdata('userId')){
             $data =array();
-            $user_id=$this->session->userdata('userId');
-            $userVideos = $this->user->showVideos($user_id);
+            $params = array();
+            $params['columns']='video_id';
+            $params['conditions'] = array('user_id'=>$this->session->userdata('userId'));
+            $userVideos = $this->user->getRows($params,'social_videos');
 //            echo '<pre>';print_r($userVideos);exit;
             if($userVideos){
                 $data['userVideos']=$userVideos;
@@ -226,29 +215,35 @@ public function index()
         }
     }
     function fetchVideos(){
-        $videos=array();
-        $client = new Google_Client();
-        $client->setAccessToken($this->session->userdata('access_token'));
-        $videos['videoslist'] = $this->getUserVideos($client);
-        $videos['userId']=$this->session->userdata('userId');
-        if(isset($videos['videoslist'][0]['id']['channelId'])){
-            $videos['channel_id']=$videos['videoslist'][0]['id']['channelId'];
+        if($this->session->userdata('access_token')){
+            $videos=array();
+            $client = new Google_Client();
+            $client->setAccessToken($this->session->userdata('access_token'));
+            $videos['videoslist'] = $this->getUserVideos($client);
+            $videos['userId']=$this->session->userdata('userId');
+            $this->addVideos($videos);
         }
-        $this->addVideos($videos);
         redirect('users/showUserVideos');
     }
     
     function addVideos($userDetails){
         foreach($userDetails['videoslist'] as $videos){
             if(isset($videos['id']['videoId'])){
+            $params['columns']='video_id';
+            $params['conditions'] = array('video_id'=>$videos['id']['videoId']);
+            $userVideos = $this->user->getRows($params,'social_videos');
+            if($userVideos){
+                continue;
+            }else{
                 $videoDetails = array(
                     'user_id'=>$userDetails['userId'],
-                    'channel_id'=>$userDetails['channel_id'],
+                    'channel_id'=>$userDetails['videoslist']['channel_id'],
                     'video_id'=>$videos['id']['videoId'],
                     'created_at'=> date("Y-m-d H:i:s")
                 );
-                $insertVideos = $this->user->insertVideos($videoDetails);
+                $insertVideos = $this->user->insert($videoDetails,'social_videos');
             }
+           }
         }  
     }
 }

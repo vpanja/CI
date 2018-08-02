@@ -1,16 +1,15 @@
 <?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
 class User extends CI_Model{
     function __construct() {
-        $this->userTbl = 'users';
-        $this->socialUserTbl = 'social_users';
-        $this->userVideoTbl = 'social_videos';
+
     }
     /*
      * get rows from the users table
      */
-    function getRows($params = array()){
-        $this->db->select('*');
-        $this->db->from($this->userTbl);
+    function getRows($params = array(),$table){
+        $columns = isset($params['columns']) ? $params['columns']:'*';
+        $this->db->select($columns);
+        $this->db->from($table);
         
         //fetch data by conditions
         if(array_key_exists("conditions",$params)){
@@ -39,7 +38,7 @@ class User extends CI_Model{
                 $result = ($query->num_rows() > 0)?$query->result_array():FALSE;
             }
         }
-
+        
         //return fetched data
         return $result;
     }
@@ -47,17 +46,9 @@ class User extends CI_Model{
     /*
      * Insert user information
      */
-    public function insert($data = array()) {
-        //add created and modified data if not included
-       /* if(!array_key_exists("created", $data)){
-            $data['created'] = date("Y-m-d H:i:s");
-        }
-        if(!array_key_exists("modified", $data)){
-            $data['modified'] = date("Y-m-d H:i:s");
-        }
-        */
+    public function insert($data = array(),$table) {
         //insert user data to users table
-        $insert = $this->db->insert($this->userTbl, $data);
+        $insert = $this->db->insert($table, $data);
         
         //return the status
         if($insert){
@@ -66,35 +57,4 @@ class User extends CI_Model{
             return false;
         }
     }
-    
-    public function insertSocial($data = array()) {
-//        echo '<pre>';print_r($data);exit;
-        //insert user data to users table
-        $insert = $this->db->insert($this->socialUserTbl, $data);        
-        //return the status
-        if($insert){
-            return $this->db->insert_id();;
-        }else{
-            return false;
-        }
-    }
-    public function insertVideos($data = array()) {
-        $insert = $this->db->insert($this->userVideoTbl, $data);
-        
-        //return the status
-        if($insert){
-            return $this->db->insert_id();;
-        }else{
-            return false;
-        }
-    }
-    public function showVideos($userId) {
-        $this->db->select('video_id');
-        $this->db->from($this->userVideoTbl);
-        $this->db->where('user_id',$userId);
-        $query = $this->db->get();
-        $result = ($query->num_rows() > 0)?$query->result_array():FALSE;
-        return $result;
-    }
-
 }
